@@ -2,7 +2,7 @@ import { createAdminSupabase } from "@/lib/supabase/admin";
 import { publicSupabaseConfig, validServiceOrigin } from "@/lib/supabase/config";
 import { verifiedUser } from "@/lib/supabase/server";
 import { DeepSeekError, deepSeekConfig, streamDeepSeek, type ProviderMessage } from "@/lib/tutor/deepseek";
-import { evaluateGuidedReply, guidedHistory, guidedPrompt, guidedReply, guardedReply, isAnswerRequest, legacyGuidedPrompt } from "@/lib/tutor/guided-coach";
+import { evaluateGuidedReply, finishGuidedFeedback, guidedHistory, guidedPrompt, guardedReply, isAnswerRequest, legacyGuidedPrompt } from "@/lib/tutor/guided-coach";
 import { guidedActionMessage, isGuidedAction, readGuidedPreferences, type GuidedSession } from "@/lib/tutor/guided";
 import { isLearningMode, isUuid, maxPromptLength, type TutorEvent } from "@/lib/tutor/modes";
 
@@ -147,21 +147,20 @@ export async function POST(request: Request) {
               guidedInstructions: guidedPrompt(guide, action, turn.problem, turn.hintLevel),
             });
             const reviewed = result ? evaluateGuidedReply(result.content, guide.stage === "verify" && action === "attempt")
-              : { guard: "answer_request" as const };
-            const reply = guidedReply(reviewed, guide.language);
+              : { guard: "answer_request" as const, reviewedPractice: null };
+            const feedback = finishGuidedFeedback(reviewed, guide, action);
             signal.throwIfAborted();
             const saved = await admin.rpc("oyla_finish_guided_turn", {
-              p_user: auth.user.id, p_request: requestId, p_lease: turn.leaseId, p_content: reply,
+              p_user: auth.user.id, p_request: requestId, p_lease: turn.leaseId, p_content: feedback.reply,
               p_model: result?.model ?? "oyla-guided-guard", p_input: result?.input ?? null, p_output: result?.output ?? null,
-              p_latency: result?.latency ?? 0, p_challenge: reviewed.guard ? null : reviewed.challenge,
-              p_practice: reviewed.guard ? null : reviewed.practice, p_guard: reviewed.guard,
-              p_attempted: reviewed.guard ? false : reviewed.attempted,
+              p_latency: result?.latency ?? 0, p_challenge: feedback.challenge,
+              p_practice: feedback.practice, p_guard: reviewed.guard, p_attempted: feedback.attempted,
             });
             if (saved.error || !saved.data) {
               console.error("OYLA could not save guided turn", { code: saved.error?.code ?? "lease_expired" });
               throw new Error("Guided turn was not saved.");
             }
-            send({ type: "delta", text: reply });
+            send({ type: "delta", text: feedback.reply });
             send({ type: "guide", session: saved.data as GuidedSession });
           } else {
             const legacyGuide = mode === "guided";

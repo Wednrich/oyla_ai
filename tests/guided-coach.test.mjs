@@ -34,6 +34,14 @@ test("Guide Me blocks common answer requests and leaked artifacts before release
   assert.equal(challenge.challenge, "Solve 2y + 6 = 14.");
   assert.match(coach.guidedReply(challenge, "en"), /on your own/);
   assert.doesNotMatch(coach.guidedReply(challenge, "en"), /subtract/i);
+  const leaked = coach.evaluateGuidedReply(reply("The final answer is 5.", { attempted: true, practice: "Checking by substitution" }), false);
+  const feedback = coach.finishGuidedFeedback(leaked, { stage: "challenge", language: "en" }, "attempt");
+  assert.equal(feedback.attempted, true);
+  assert.match(feedback.reply, /Checking by substitution/);
+  assert.doesNotMatch(feedback.reply, /5/);
+  assert.equal(coach.finishGuidedFeedback(leaked, { stage: "attempt", language: "en" }, "attempt").attempted, false);
+  const unsafePractice = coach.evaluateGuidedReply(reply("The final answer is 5.", { attempted: true, practice: "x = 5" }), false);
+  assert.equal(coach.finishGuidedFeedback(unsafePractice, { stage: "challenge", language: "en" }, "attempt").attempted, false);
 });
 
 test("Preferences validate all three response languages and hints have distinct instructions", () => {

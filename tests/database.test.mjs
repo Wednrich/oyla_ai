@@ -224,7 +224,7 @@ test("Phase 04 enforces guided stages, four hint levels, retries, consent, and a
     assert.equal(await eventCount(), 14);
 
     const final = await finish(await begin("attempt", "Subtract six from both sides and divide by two."), {
-      attempted: true, practice: "Checking equality by substitution",
+      attempted: true, practice: "Checking equality by substitution", guard: "answer_marker",
     });
     assert.equal(final.challenge_reviewed, true);
     assert.equal(final.attempts, 2);
@@ -235,6 +235,7 @@ test("Phase 04 enforces guided stages, four hint levels, retries, consent, and a
     assert.equal(closed.status, "completed");
     const exportRows = (await db.query("select * from oyla_private.guided_research_export")).rows;
     assert.equal(exportRows.filter(({ independent_task_completed }) => independent_task_completed).length, 2);
+    assert.ok(exportRows.some(({ guard_signal, independent_task_completed }) => guard_signal === "answer_marker" && independent_task_completed));
     assert.ok(exportRows.every((event) => !('content' in event) && !('user_id' in event) && event.verified_correctness === null));
     assert.equal(exportRows.find(({ event_type }) => event_type === "session_ended").duration_seconds, null);
     await db.query("select public.oyla_set_research_consent($1, false)", [student]);

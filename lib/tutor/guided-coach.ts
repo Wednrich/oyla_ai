@@ -69,7 +69,11 @@ export function evaluateGuidedReply(raw: string, wantsChallenge: boolean) {
   const approvedChallenge = wantsChallenge && attempted && typeof challenge === "string" ? challenge.trim() : null;
   const approvedPractice = typeof practice === "string" && practice.trim().length <= 180 ? practice.trim() || null : null;
   const guard = disclosure ? "answer_marker" as const : answerSignal([reply, approvedChallenge, approvedPractice].filter(Boolean).join("\n"));
-  return guard ? { guard } : { guard: null, reply: reply.trim(), attempted, challenge: approvedChallenge, practice: approvedPractice };
+  if (guard) {
+    const reviewedPractice = attempted && approvedPractice && !answerSignal(approvedPractice) ? approvedPractice : null;
+    return { guard, reviewedPractice };
+  }
+  return { guard: null, reply: reply.trim(), attempted, challenge: approvedChallenge, practice: approvedPractice };
 }
 
 const independentChallengeReply: Record<GuidedLanguage, string> = {
@@ -77,6 +81,24 @@ const independentChallengeReply: Record<GuidedLanguage, string> = {
   ru: "Вы объяснили основную идею. Решите новую задачу самостоятельно и опишите ход рассуждений.",
   kk: "Негізгі ойды түсіндірдіңіз. Жаңа есепті өзіңіз шығарып, шешу жолыңызды жазыңыз.",
 };
+
+const reviewWithheld: Record<GuidedLanguage, string> = {
+  en: "I reviewed your attempt. For your next practice, focus on this skill: ",
+  ru: "Я разобрал вашу попытку. В следующем задании уделите внимание этому навыку: ",
+  kk: "Тапсырманы қалай орындағаныңызды қарап шықтым. Келесі жаттығуда осы дағдыға көңіл бөліңіз: ",
+};
+
+export function finishGuidedFeedback(reviewed: ReturnType<typeof evaluateGuidedReply>, session: GuidedSession, action: GuidedAction) {
+  const practice = reviewed.guard && session.stage === "challenge" && action === "attempt" && "reviewedPractice" in reviewed
+    ? reviewed.reviewedPractice : null;
+  if (practice) return { reply: reviewWithheld[session.language] + practice, challenge: null, practice, attempted: true };
+  return {
+    reply: guidedReply(reviewed, session.language),
+    challenge: reviewed.guard ? null : reviewed.challenge,
+    practice: reviewed.guard ? null : reviewed.practice,
+    attempted: reviewed.guard ? false : reviewed.attempted,
+  };
+}
 
 export function guidedReply(reviewed: ReturnType<typeof evaluateGuidedReply>, language: GuidedLanguage) {
   if (reviewed.guard) return guardedReply[language];
