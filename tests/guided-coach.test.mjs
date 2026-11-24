@@ -30,8 +30,10 @@ test("Guide Me blocks common answer requests and leaked artifacts before release
   assert.equal(coach.evaluateGuidedReply(reply("A subtle solution", { disclosure: true }), false).guard, "answer_marker");
   assert.equal(coach.evaluateGuidedReply(reply("What happens if you subtract the constant from both sides?"), false).guard, null);
   assert.equal(coach.evaluateGuidedReply(reply("The restatement makes sense.", { attempted: true }), true).guard, "malformed_response");
-  assert.equal(coach.evaluateGuidedReply(reply("Now try a similar problem.", { attempted: true, challenge: "Solve 2y + 6 = 14." }), true).challenge,
-    "Solve 2y + 6 = 14.");
+  const challenge = coach.evaluateGuidedReply(reply("Now try a similar problem. Subtract six from both sides.", { attempted: true, challenge: "Solve 2y + 6 = 14." }), true);
+  assert.equal(challenge.challenge, "Solve 2y + 6 = 14.");
+  assert.match(coach.guidedReply(challenge, "en"), /on your own/);
+  assert.doesNotMatch(coach.guidedReply(challenge, "en"), /subtract/i);
 });
 
 test("Preferences validate all three response languages and hints have distinct instructions", () => {

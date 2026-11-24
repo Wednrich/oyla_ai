@@ -1,5 +1,5 @@
 import type { ProviderMessage } from "./deepseek";
-import { guidedLanguages, type GuidedAction, type GuidedSession } from "./guided";
+import { guidedLanguages, type GuidedAction, type GuidedLanguage, type GuidedSession } from "./guided";
 
 export type GuardSignal = "answer_request" | "answer_marker" | "code_block" | "malformed_response";
 
@@ -24,10 +24,10 @@ export function guidedPrompt(session: GuidedSession, action: GuidedAction, probl
       break;
     case "attempt":
       if (session.stage === "verify") {
-        task = "Check the learner's restatement. If it demonstrates the core idea in their own words, set attempted=true and write one solvable analogous problem in challenge, using different inputs and the same underlying skill. Leave the solution out. If the restatement is missing or misunderstands the idea, set attempted=false, give specific feedback, and ask for a revised restatement.";
+        task = "Check the learner's restatement. If it demonstrates the core idea in their own words, set attempted=true and write one solvable analogous problem in challenge, using different inputs and the same underlying skill. The challenge field is the problem statement only. Give no concrete next step, worked example, or hint for this challenge. If the restatement is missing or misunderstands the idea, set attempted=false, give specific feedback, and ask for a revised restatement.";
       } else {
         task = "Decide whether the learner supplied a substantive independent attempt, even if incorrect. Set attempted accordingly. On substantive work, give constructive feedback identifying a strength, a concrete reasoning gap when present, and how to check or correct it. Never certify correctness, reveal the final answer, provide an entire corrected solution, or judge the learner's academic independence."
-          + (session.stage === "challenge" ? " Review the independent challenge. Put one short concept or skill to practice in practice, even when the attempt is strong. Label the text as feedback from an AI tutor." : "");
+          + (session.stage === "challenge" ? " Review the independent challenge in words. Do not repeat any value or equation from either the problem or the learner output. Put one short concept or skill to practice in practice, even when the attempt is strong. Label the text as feedback from an AI tutor." : "");
       }
   }
 
@@ -70,6 +70,17 @@ export function evaluateGuidedReply(raw: string, wantsChallenge: boolean) {
   const approvedPractice = typeof practice === "string" && practice.trim().length <= 180 ? practice.trim() || null : null;
   const guard = disclosure ? "answer_marker" as const : answerSignal([reply, approvedChallenge, approvedPractice].filter(Boolean).join("\n"));
   return guard ? { guard } : { guard: null, reply: reply.trim(), attempted, challenge: approvedChallenge, practice: approvedPractice };
+}
+
+const independentChallengeReply: Record<GuidedLanguage, string> = {
+  en: "You’ve explained the core idea. Try the new challenge on your own and submit your reasoning.",
+  ru: "Вы объяснили основную идею. Решите новую задачу самостоятельно и опишите ход рассуждений.",
+  kk: "Негізгі ойды түсіндірдіңіз. Жаңа есепті өзіңіз шығарып, шешу жолыңызды жазыңыз.",
+};
+
+export function guidedReply(reviewed: ReturnType<typeof evaluateGuidedReply>, language: GuidedLanguage) {
+  if (reviewed.guard) return guardedReply[language];
+  return reviewed.challenge ? independentChallengeReply[language] : reviewed.reply;
 }
 
 export function guidedHistory(history: ProviderMessage[]) {

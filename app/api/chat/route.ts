@@ -2,7 +2,7 @@ import { createAdminSupabase } from "@/lib/supabase/admin";
 import { publicSupabaseConfig, validServiceOrigin } from "@/lib/supabase/config";
 import { verifiedUser } from "@/lib/supabase/server";
 import { DeepSeekError, deepSeekConfig, streamDeepSeek, type ProviderMessage } from "@/lib/tutor/deepseek";
-import { evaluateGuidedReply, guidedHistory, guidedPrompt, guardedReply, isAnswerRequest, legacyGuidedPrompt } from "@/lib/tutor/guided-coach";
+import { evaluateGuidedReply, guidedHistory, guidedPrompt, guidedReply, guardedReply, isAnswerRequest, legacyGuidedPrompt } from "@/lib/tutor/guided-coach";
 import { guidedActionMessage, isGuidedAction, readGuidedPreferences, type GuidedSession } from "@/lib/tutor/guided";
 import { isLearningMode, isUuid, maxPromptLength, type TutorEvent } from "@/lib/tutor/modes";
 
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
             });
             const reviewed = result ? evaluateGuidedReply(result.content, guide.stage === "verify" && action === "attempt")
               : { guard: "answer_request" as const };
-            const reply = reviewed.guard ? guardedReply[guide.language] : reviewed.reply;
+            const reply = guidedReply(reviewed, guide.language);
             signal.throwIfAborted();
             const saved = await admin.rpc("oyla_finish_guided_turn", {
               p_user: auth.user.id, p_request: requestId, p_lease: turn.leaseId, p_content: reply,

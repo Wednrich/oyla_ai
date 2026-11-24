@@ -40,8 +40,13 @@ function SessionTimer({ session }: { session: GuidedSession }) {
   const [now, setNow] = useState(start);
   useEffect(() => {
     if (session.ended_at) return;
-    const interval = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(interval);
+    const tick = () => setNow(Date.now());
+    const first = window.setTimeout(tick, 0);
+    const interval = window.setInterval(tick, 1000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(interval);
+    };
   }, [session.ended_at]);
   const end = session.ended_at ? Date.parse(session.ended_at) : now;
   return <span>{formatDuration(Math.max(0, Math.floor((end - start) / 1000)))}</span>;
