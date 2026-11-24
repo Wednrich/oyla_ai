@@ -79,7 +79,10 @@ export function guidedHistory(history: ProviderMessage[]) {
     const tutor = history[index + 1];
     if (learner.role !== "user" || tutor.role !== "assistant") continue;
     if (!isAnswerRequest(learner.content) && !Object.values(guardedReply).some((message) => message === tutor.content)) {
-      safe.push(learner, tutor);
+      // JSON mode needs the previous assistant messages to demonstrate the same response format.
+      safe.push(learner, { role: "assistant", content: JSON.stringify({
+        reply: tutor.content, attempted: false, challenge: null, practice: null, disclosure: false,
+      }) });
     }
     index++;
   }

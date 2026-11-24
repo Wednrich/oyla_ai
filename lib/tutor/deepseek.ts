@@ -30,7 +30,7 @@ interface DeepSeekChunk {
 }
 
 export class DeepSeekError extends Error {
-  constructor(readonly status?: number) {
+  constructor(readonly status?: number, readonly reason?: "provider_event" | "finish_reason" | "incomplete" | "too_long") {
     super("DeepSeek request failed.");
   }
 }
@@ -68,7 +68,7 @@ async function* sseData(body: ReadableStream<Uint8Array>) {
         if (line.startsWith("data:")) yield line.slice(5).trim();
         end = buffer.indexOf("\n");
       }
-      if (buffer.length > 128_000) throw new DeepSeekError();
+      if (buffer.length > 128_000) throw new DeepSeekError(undefined, "too_long");
       if (done) break;
     }
     if (buffer.startsWith("data:")) yield buffer.slice(5).trim();
@@ -127,7 +127,7 @@ export async function streamDeepSeek({
       break;
     }
     const chunk = JSON.parse(data) as DeepSeekChunk;
-    if (chunk.error) throw new DeepSeekError();
+    if (chunk.error) throw new DeepSeekError(undefined, "provider_event");
     if (chunk.model && /^[\w.-]{1,100}$/.test(chunk.model)) model = chunk.model;
     if (chunk.usage) {
       input = tokens(chunk.usage.prompt_tokens);
@@ -135,16 +135,16 @@ export async function streamDeepSeek({
     }
     for (const choice of chunk.choices ?? []) {
       if (choice.finish_reason) {
-        if (!["stop", "length"].includes(choice.finish_reason)) throw new DeepSeekError();
+        if (!["stop", "length"].includes(choice.finish_reason)) throw new DeepSeekError(undefined, "finish_reason");
         finished = true;
       }
       const text = choice.delta?.content;
       if (!text) continue;
       content += text;
-      if (content.length > 24000) throw new DeepSeekError();
+      if (content.length > 24000) throw new DeepSeekError(undefined, "too_long");
       onDelta(text);
     }
   }
-  if (!completed || !finished || !content.trim()) throw new DeepSeekError();
+  if (!completed || !finished || (!guidedInstructions && !content.trim())) throw new DeepSeekError(undefined, "incomplete");
   return { content, model, input, output, latency: Math.round(performance.now() - started) };
 }

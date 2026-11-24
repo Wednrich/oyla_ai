@@ -188,7 +188,7 @@ export async function POST(request: Request) {
         send({ type: "done" });
       } catch (error) {
         if (!signal.aborted && error instanceof DeepSeekError) {
-          console.error("OYLA tutor provider failed", { status: error.status ?? "invalid_stream", mode });
+          console.error("OYLA tutor provider failed", { status: error.status ?? error.reason ?? "invalid_stream", mode });
         }
         if (turn.leaseId) await admin.rpc("oyla_fail_chat", { p_user: auth.user.id, p_request: requestId, p_lease: turn.leaseId });
         const message = error instanceof DeepSeekError && (error.status === 401 || error.status === 402)
